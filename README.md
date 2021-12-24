@@ -1,4 +1,4 @@
-Slack API in Go
+Okta API in Go
 
 ## Why?
 I am currently learning Go and this seemed like a good idea.
