@@ -4,42 +4,33 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
+	"io/ioutil"
+	"log"
 	"net/http"
 )
 
-func (c *Client) getRequest(ctx context.Context, path string) (*http.Response, error) {
-	reqHeaders := make(http.Header)
-	reqHeaders.Set("Accept", "application/json")
-	reqHeaders.Set("Content-Type", "application/json")
-	reqHeaders.Set("Authorization", fmt.Sprintf("SSWS %s", c.token))
-
-	req, err := http.NewRequest("GET", c.oktaDomain+path, nil)
+func getRequest(ctx context.Context, client *http.Client, oktaDomain, path string) (*http.Response, error) {
+	req, err := http.NewRequest("GET", oktaDomain+path, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	return SendRequest(ctx, c.httpClient, req)
+	return sendRequest(ctx, client, req)
 }
 
-func (c *Client) postRequest(ctx context.Context, path string, v interface{}) (*http.Response, error) {
-	reqHeaders := make(http.Header)
-	reqHeaders.Set("Accept", "application/json")
-	reqHeaders.Set("Content-Type", "application/json")
-	reqHeaders.Set("Authorization", fmt.Sprintf("SSWS %s", c.token))
-
+func postRequest(ctx context.Context, client *http.Client, oktaDomain, path string, v interface{}) (*http.Response, error) {
 	body, err := jsonReader(v)
 	if err != nil {
 		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", c.oktaDomain+path, body)
+	req, err := http.NewRequest("POST", oktaDomain+path, body)
 	if err != nil {
 		return nil, err
 	}
-	req.Header = reqHeaders
-	return SendRequest(ctx, c.httpClient, req)
+
+	return sendRequest(ctx, client, req)
 }
 
 func jsonReader(v interface{}) (io.Reader, error) {
@@ -55,7 +46,7 @@ func jsonReader(v interface{}) (io.Reader, error) {
 // If ctx is non-nil, it calls all hooks, then sends the request with
 // req.WithContext, then calls any functions returned by the hooks in
 // reverse order.
-func SendRequest(ctx context.Context, client *http.Client, req *http.Request) (*http.Response, error) {
+func sendRequest(ctx context.Context, client *http.Client, req *http.Request) (*http.Response, error) {
 	if ctx == nil {
 		return client.Do(req)
 	}
@@ -77,4 +68,22 @@ func send(ctx context.Context, client *http.Client, req *http.Request) (*http.Re
 		}
 	}
 	return resp, err
+}
+
+func parseResponse(body io.ReadCloser, intf interface{}, debug bool) error {
+	var decoder *json.Decoder
+	if debug {
+		response, err := ioutil.ReadAll(body)
+		if err != nil {
+			return err
+		}
+		log.Println(string(response))
+		decoder = json.NewDecoder(bytes.NewReader(response))
+	} else {
+		decoder = json.NewDecoder(body)
+	}
+	if err := decoder.Decode(&intf); err != nil {
+		return err
+	}
+	return nil
 }
